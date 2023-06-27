@@ -43,7 +43,7 @@ async function main() {
     let key: string | undefined;
     let username: string | undefined;
     const interval = setInterval(() => {
-        for (const game of games) {
+        for (const game of Array.from(games)) {
             game[1].frame();
             const gameObjects = game[1].asSerializeable();
             game[1].sockets.forEach((socket: Socket) => {
