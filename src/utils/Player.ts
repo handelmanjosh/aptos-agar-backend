@@ -2,7 +2,7 @@ import { Socket } from "socket.io";
 import PowerUp, { inventoryPowerUps, inventoryPowerUpsContructors } from "./PowerUp";
 import { array_distance, getRandomColor } from "./utils";
 import { HexString, AptosAccount } from "aptos";
-import { mintDouble, mintRecombine, mintSize, mintSlow, mintSpeed, mintTriple, mintVirus } from "./aptos_mint";
+import { mintDouble, mintMass, mintRecombine, mintSize, mintSlow, mintSpeed, mintTriple, mintTrophy, mintVirus } from "./aptos_mint";
 import GameController from "./GameController";
 
 const scaleByRadius = (radius: number) => {
@@ -62,7 +62,10 @@ export class SuperPlayer {
             this.scale = scaleByRadius(totalRadius);
         };
         this.kill = async () => {
-            getSocket().emit("dead", { mass: this.getTotalMass(), powerUps: this.serializeInventory(), trophies: Math.round(this.trophies) });
+            //fix issue mass decimals
+            const mass = Math.round(this.getTotalMass() / 100);
+            const trophies = Math.round(this.trophies);
+            getSocket().emit("dead", { mass: mass / 10, powerUps: this.serializeInventory(), trophies });
             for (const [name, number] of this.serializeInventory()) {
                 if (number > 0) {
                     // ["Size", "Speed", "Place Virus", "Recombine", "Freeze", "Double Food", "Triple Food", "Slow"]
@@ -93,6 +96,8 @@ export class SuperPlayer {
                     }
                 }
             }
+            //await mintTrophy(new HexString(this.publicKey), Math.floor(trophies));
+            await mintMass(new HexString(this.publicKey), mass);
         };
     }
     getMessages() {
