@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon src/server.ts",
     "build": "tsc --build --verbose",
-    "start": "find . -type d -not -path './node_modules/*' && node dist/server.js"
+    "start": "find . -not -path './node_modules/*' && node dist/server.js"
   },
   "keywords": [],
   "author": "",
