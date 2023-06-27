@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "nodemon src/server.ts",
     "build": "tsc --build --verbose",
-    "start": "node src/server.js"
+    "start": "ls -R && node src/server.js"
   },
   "keywords": [],
   "author": "",
