@@ -5,12 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/server.ts",
-    "build": "npm run migrate:deploy && tsc --build --verbose",
-    "start": "node dist/src/server.js",
-    "migrate:dev": "prisma migrate dev",
-    "migrate:deploy": "prisma migrate deploy",
-    "migrate:status": "prisma migrate status",
-    "generate": "prisma generate"
+    "build": "npm run tsc --build --verbose",
+    "start": "node dist/src/server.js"
   },
   "keywords": [],
   "author": "",
