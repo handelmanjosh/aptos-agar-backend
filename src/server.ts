@@ -2,8 +2,11 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server, Socket } from 'socket.io';
 import cors from 'cors';
-import prisma from "../prisma/seed";
 import GameController from './utils/GameController';
+import { SpawnAway } from './utils/utils';
+import { SuperPlayer } from './utils/Player';
+
+require("dotenv").config();
 
 
 const app = express();
@@ -16,6 +19,7 @@ const io = new Server(httpServer, {
         methods: ["GET", "POST", "DELETE", "UPDATE"]
     }
 });
+
 const port = process.env.ENVIRONMENT === "development" ? 3005 : (Number(process.env.PORT) || 3000);
 async function main() {
     const games: Map<string, GameController> = new Map<string, GameController>();
@@ -47,11 +51,12 @@ async function main() {
                 const me = game[1].Players.find(player => player.id == socket.id);
                 socket.emit("gameState", obj);
                 if (me) {
-                    socket.emit("inventory", me.serializeInventory());
+                    socket.emit("receiveInventory", me.serializeInventory());
+                    socket.emit("receivePrivateMessages", me.getMessages());
                 }
             });
             io.to(game[0]).emit("receiveLeaderboard", game[1].getLeaderboard());
-            io.to(game[0]).emit("receiveMessages", game[1].getMessages());
+            io.to(game[0]).emit("receiveGlobalMessages", game[1].getGlobalMessages());
         }
         i++;
     }, 1000 / 60);
@@ -77,20 +82,48 @@ async function main() {
                 }
             }
         });
-        socket.on("usePowerUp", (data: { powerUp: string; }) => {
-            console.log(`Used power up: ${data.powerUp}`);
+        socket.on("usePowerUp", name => {
             const game = games.get(gameId);
             const player = game?.Players.find(player => player.id == socket.id);
             if (player) {
-                player.usePowerUp(data.powerUp);
+                player.usePowerUp(name);
+            }
+        });
+        socket.on("spawn", ({ powerUps, address }: { powerUps: [string, number][], address: string; }) => {
+            let game = games.get(gameId)!;
+            const [x, y] = SpawnAway(game?.allSubPlayers() || [], 10, [10000, 10000]);
+            const player = new SuperPlayer(x, y, vMax, socket.id,
+                (name: string) => {
+                    socket.emit("collectInGamePowerUp", name);
+                },
+                //use 3.14 for simplicity
+                (n: number) => socket.emit("massIncrease", n ** 2 * 3.14),
+                () => socket,
+                address,
+                game,
+            );
+            if (key) {
+                player.key = key;
+            }
+            if (username) {
+                player.setName(username);
+            }
+            if (powerUps) {
+                for (const powerUp of powerUps) {
+                    player.addPowerUps(powerUp);
+                }
+            }
+            if (game) {
+                game.addPlayer(player);
+            } else {
+                gameId = findRoom(socket);
+                game = games.get(gameId)!;
+                game.addPlayer(player);
+                player.game = game;
             }
         });
         socket.on("username", (newUsername: string) => {
             username = newUsername;
-        });
-        socket.on("getOffChainData", async (key: string) => {
-            const user = await prisma.user.findUnique({ where: { name: key } });
-            socket.emit("getOffChainData", user);
         });
         socket.on("disconnect", () => {
             const game = games.get(gameId);
@@ -108,23 +141,6 @@ async function main() {
             const player = game?.Players.find(player => player.id == socket.id);
             if (player) {
                 player.delete = true;
-            }
-        });
-        socket.on("loadPowerUps", (powerUps: [string, number][]) => {
-            const game = games.get(gameId);
-            const player = game?.Players.find(player => player.id == socket.id);
-            if (player) {
-                for (const powerUp of powerUps) {
-                    player.addPowerUps(powerUp);
-                }
-            }
-        });
-        socket.on("loadPowerUp", (powerUp: string) => {
-            console.log(powerUp);
-            const game = games.get(gameId);
-            const player = game?.Players.find(player => player.id == socket.id);
-            if (player) {
-                player.addPowerUps([powerUp, 1]);
             }
         });
     });

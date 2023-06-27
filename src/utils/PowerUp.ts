@@ -1,6 +1,6 @@
 import { Player, SuperPlayer } from "./Player";
-import { getRandomColor, randomBetween } from "./utils";
-export const inventoryPowerUps: string[] = ["SpeedPowerUp", "SizePowerUp", "PlaceVirus", "Recombine"];
+import { findNearestPlayer, getRandomColor, randomBetween } from "./utils";
+export const inventoryPowerUps: string[] = ["Size", "Speed", "PlaceVirus", "Recombine", "Slow", "DoubleFood", "TripleFood", "Freeze"];
 //CHECK END OF FILE FOR CONSTRUCTORS
 export default class PowerUp {
     x: number;
@@ -50,11 +50,11 @@ export class FoodPowerUp extends PowerUp {
 export class SpeedPowerUp extends PowerUp {
     square: boolean;
     constructor(x: number, y: number) {
-        super(x, y, 0, 0, 15, "blue", "SpeedPowerUp");
+        super(x, y, 0, 0, 15, "blue", "Speed");
         this.square = true;
     }
     collect(player: SuperPlayer) {
-        player.inventory.get("SpeedPowerUp")!.push(this);
+        player.inventory.get("Speed")!.push(this);
     }
     powerUp(superPlayer: SuperPlayer) {
         superPlayer.players.forEach((player: Player) => {
@@ -70,11 +70,11 @@ export class SpeedPowerUp extends PowerUp {
 export class SizePowerUp extends PowerUp {
     square: boolean;
     constructor(x: number, y: number) {
-        super(x, y, 0, 0, 15, "red", "SizePowerUp");
+        super(x, y, 0, 0, 15, "red", "Size");
         this.square = true;
     }
     collect(player: SuperPlayer) {
-        player.inventory.get("SizePowerUp")!.push(this);
+        player.inventory.get("Size")!.push(this);
     }
     powerUp(superPlayer: SuperPlayer) {
         const totalFood = 100;
@@ -97,20 +97,60 @@ export class CollectableSkin extends PowerUp {
 }
 
 export class Virus extends PowerUp {
-    constructor(x: number, y: number) {
-        super(x, y, 0, 0, 15, "black", "Virus");
+    vx: number;
+    vy: number;
+    ax: number;
+    ay: number;
+    canCollide: boolean;
+    psuedofriction: number;
+    constructor(x: number, y: number, canCollide: boolean) {
+        super(x, y, 0, 0, 40, "green", "Virus");
+        this.vx = 0;
+        this.vy = 0;
+        this.ax = 0;
+        this.ay = 0;
+        this.psuedofriction = .05;
+        this.canCollide = canCollide;
     }
-    powerUp(player: Player) {
-        player.eat(this);
+    powerUp(player: SuperPlayer) {
         this.delete = true;
+        player.split();
+        player.split();
+        //todo: improve
     }
-    move() { }
+    move() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vx += this.ax;
+        this.vy += this.ay;
+        if (Math.abs(this.ax) < 2 * this.psuedofriction) {
+            this.ay = 0;
+        }
+        if (Math.abs(this.ay) < 2 * this.psuedofriction) {
+            this.ay = 0;
+        }
+        this.ay = this.ay < 0 ? this.ay + this.psuedofriction : this.ay - this.psuedofriction;
+        this.ax = this.ax < 0 ? this.ax + this.psuedofriction : this.ax - this.psuedofriction;
+    }
 }
 export class PlaceVirus extends PowerUp {
     square: boolean;
     constructor(x: number, y: number) {
         super(x, y, 0, 0, 15, "purple", "PlaceVirus");
         this.square = true;
+    }
+    collect(player: SuperPlayer) {
+        player.inventory.get("PlaceVirus")!.push(this);
+    }
+    powerUp(superPlayer: SuperPlayer) {
+        const virus = new Virus(superPlayer.x, superPlayer.y, false);
+        virus.ax = -superPlayer.vx;
+        virus.ay = -superPlayer.vy;
+        superPlayer.game.virus.push(virus);
+        setTimeout(() => {
+            virus.canCollide = true;
+        }, 500);
+
     }
 }
 
@@ -136,4 +176,86 @@ export class Recombine extends PowerUp {
     move() { }
 }
 
-export const inventoryPowerUpsContructors = [SpeedPowerUp, SizePowerUp, PlaceVirus, Recombine]; 
+export class SlowPowerUp extends PowerUp {
+    square: boolean;
+    constructor(x: number, y: number) {
+        super(x, y, 0, 0, 15, "yellow", "Slow");
+        this.square = true;
+    }
+    collect(player: SuperPlayer) {
+        player.inventory.get("Slow")!.push(this);
+    }
+    powerUp(superPlayer: SuperPlayer) {
+        const player = findNearestPlayer(superPlayer, superPlayer.game);
+        if (player) {
+            player.players.forEach((player: Player) => {
+                player.vMax /= 2;
+            });
+            setTimeout(() => {
+                player.players.forEach((player: Player) => {
+                    player.vMax *= 2;
+                });
+            }, 10000);
+        } else {
+            superPlayer.inventory.get("Slow")!.push(this);
+        }
+    }
+}
+
+export class DoubleFoodPowerUp extends PowerUp {
+    square: boolean;
+    constructor(x: number, y: number) {
+        super(x, y, 0, 0, 15, "pink", "DoubleFood");
+        this.square = true;
+    }
+    collect(player: SuperPlayer) {
+        player.inventory.get("DoubleFood")!.push(this);
+    }
+    powerUp(superPlayer: SuperPlayer) {
+        if (superPlayer.eatMultiplier === 1) {
+            superPlayer.eatMultiplier = 2;
+            setTimeout(() => {
+                superPlayer.eatMultiplier = 1;
+            }, 10000);
+        } else {
+            superPlayer.inventory.get("DoubleFood")!.push(this);
+        }
+    }
+}
+
+export class TripleFoodPowerUp extends PowerUp {
+    square: boolean;
+    constructor(x: number, y: number) {
+        super(x, y, 0, 0, 15, "magenta", "TripleFood");
+        this.square = true;
+    }
+    collect(player: SuperPlayer) {
+        player.inventory.get("TripleFood")!.push(this);
+    }
+    powerUp(superPlayer: SuperPlayer) {
+        if (superPlayer.eatMultiplier === 1) {
+            superPlayer.eatMultiplier = 3;
+            setTimeout(() => {
+                superPlayer.eatMultiplier = 1;
+            }, 10000);
+        } else {
+            superPlayer.inventory.get("TripleFood")!.push(this);
+        }
+    }
+}
+
+export class FreezePowerUp extends PowerUp {
+    square: boolean;
+    constructor(x: number, y: number) {
+        super(x, y, 0, 0, 15, "light blue", "Freeze");
+        this.square = true;
+    }
+    collect(player: SuperPlayer) {
+        player.inventory.get("Freeze")!.push(this);
+    }
+
+    //unimplemented in game
+}
+
+
+export const inventoryPowerUpsContructors = [SizePowerUp, SpeedPowerUp, PlaceVirus, Recombine, SlowPowerUp, DoubleFoodPowerUp, TripleFoodPowerUp, FreezePowerUp];

@@ -1,3 +1,5 @@
+import GameController from "./GameController";
+import { SuperPlayer } from "./Player";
 
 
 type Locateable = {
@@ -70,3 +72,17 @@ const colors = ["red", "blue", "green", "purple", "orange", "pink", "white", "cy
 export const getRandomColor = (): string => {
     return colors[Math.floor(Math.random() * colors.length)];
 };
+
+
+export function findNearestPlayer(player: SuperPlayer, game: GameController): SuperPlayer | undefined {
+    let minDist = Infinity;
+    let result: SuperPlayer | undefined = undefined;
+    for (const player1 of game.Players) {
+        const distance = locateable_distance(player, player1);
+        if (distance < minDist) {
+            minDist = distance;
+            result = player1;
+        }
+    }
+    return result;
+}

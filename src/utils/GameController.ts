@@ -1,6 +1,6 @@
 import { Socket } from "socket.io";
 import { AIPlayer, Player, SuperPlayer } from "./Player";
-import PowerUp, { CollectableSkin, FoodPowerUp, PlaceVirus, Recombine, SizePowerUp, Virus } from "./PowerUp";
+import PowerUp, { CollectableSkin, DoubleFoodPowerUp, FoodPowerUp, FreezePowerUp, PlaceVirus, Recombine, SizePowerUp, SlowPowerUp, SpeedPowerUp, TripleFoodPowerUp, Virus } from "./PowerUp";
 import { CheckRadialCollision, SpawnAway, locateable_distance } from "./utils";
 
 
@@ -10,12 +10,16 @@ export default class GameController {
     PowerUps: PowerUp[];
     food: FoodPowerUp[];
     sockets: Socket[];
+    virus: Virus[];
+    globalMessages: Map<number, [string, string]>;
     constructor() {
         this.Players = [];
         this.PowerUps = [];
         this.sockets = [];
         this.AIPlayers = [];
+        this.virus = [];
         this.food = [];
+        this.globalMessages = new Map<number, [string, string]>();
     }
     allSubPlayers() {
         const all: Player[] = [];
@@ -28,6 +32,11 @@ export default class GameController {
         const position = SpawnAway([...this.allSubPlayers(), ...this.AIPlayers], 10, [10000, 10000]);
         const ai = new AIPlayer(position[0], position[1]);
         this.AIPlayers.push(ai);
+    }
+    genVirus() {
+        const position = SpawnAway([...this.allSubPlayers(), ...this.AIPlayers], 10, [10000, 10000]);
+        const virus = new Virus(position[0], position[1], true);
+        this.virus.push(virus);
     }
     addPlayer(player: SuperPlayer) {
         this.Players.push(player);
@@ -45,23 +54,32 @@ export default class GameController {
     }
     genPowerUp() {
         const loc = [Math.random() * 10000, Math.random() * 10000];
-        const powerUp = Math.floor(Math.random() * 5);
+        const powerUp = Math.floor(Math.random() * 8);
         let power: PowerUp;
         switch (powerUp) {
             case 0:
                 power = new SizePowerUp(loc[0], loc[1]);
                 break;
             case 1:
-                power = new CollectableSkin(loc[0], loc[1]);
+                power = new SpeedPowerUp(loc[0], loc[1]);
                 break;
             case 2:
-                power = new Virus(loc[0], loc[1]);
+                power = new PlaceVirus(loc[0], loc[1]);
                 break;
             case 3:
                 power = new Recombine(loc[0], loc[1]);
                 break;
+            case 4:
+                power = new SlowPowerUp(loc[0], loc[1]);
+                break;
+            case 5:
+                power = new TripleFoodPowerUp(loc[0], loc[1]);
+                break;
+            case 6:
+                power = new DoubleFoodPowerUp(loc[0], loc[1]);
+                break;
             default:
-                power = new SizePowerUp(loc[0], loc[1]);
+                power = new Recombine(loc[0], loc[1]);
                 break;
         }
         this.PowerUps.push(power);
@@ -76,6 +94,22 @@ export default class GameController {
         if (this.PowerUps.length < 50) {
             this.genPowerUp();
         }
+        if (this.virus.length < 10) {
+            this.genVirus();
+        }
+        this.virus.forEach((virus: Virus, i: number) => {
+            if (virus.delete) {
+                this.virus.splice(i, 1);
+            } else {
+                this.allSubPlayers().forEach((player: Player) => {
+                    CheckRadialCollision(virus, player, () => {
+                        if (player.radius > virus.radius && virus.canCollide) {
+                            virus.powerUp(player.parent);
+                        }
+                    });
+                });
+            }
+        });
         this.Players.forEach((player: SuperPlayer, i: number) => {
             if (player.delete) {
                 this.Players.splice(i, 1);
@@ -107,6 +141,15 @@ export default class GameController {
         });
         this.check();
     }
+    eat(player1: Player, player2: Player) {
+        const key = Date.now();
+        this.globalMessages.set(key, [player1.name ?? player1.id, player2.name ?? player2.id]);
+        player1.eat(player2);
+        player2.delete = true;
+        setTimeout(() => {
+            this.globalMessages.delete(key);
+        }, 1500);
+    }
     check() {
         this.food.forEach((food: FoodPowerUp) => {
             [...this.allSubPlayers(), ...this.AIPlayers].forEach((player: Player | AIPlayer) => {
@@ -120,11 +163,9 @@ export default class GameController {
                 if (player.id !== player2.id && !player.delete && !player2.delete) {
                     CheckRadialCollision(player, player2, () => {
                         if (player.radius > player2.radius) {
-                            player.eat(player2);
-                            player2.delete = true;
+                            this.eat(player, player2);
                         } else if (player.radius < player2.radius) {
-                            player2.eat(player);
-                            player.delete = true;
+                            this.eat(player2, player);
                         }
                     });
                 }
@@ -156,6 +197,7 @@ export default class GameController {
             ...this.PowerUps,
             ...this.AIPlayers,
             ...this.food,
+            ...this.virus,
         ];
     }
     asSerializeable() {
@@ -164,15 +206,17 @@ export default class GameController {
             ...this.Players,
             ...this.PowerUps,
             ...this.AIPlayers,
-            ...this.food
+            ...this.food,
+            ...this.virus,
         ].forEach(object => {
             objects.push(object.asSerializeable());
         });
         return objects;
     }
-    getRelevantObjects(objects: { x: number, y: number; radius: number, id?: string; }[], id: string, distance: number) {
+    getRelevantObjects(objects: { x: number, y: number; radius: number, id?: string; scale?: number; }[], id: string, distance: number) {
         const me = objects.find(object => object.id && object.id === id);
         if (me) {
+            distance *= me.scale ?? 1;
             const finalObjects: any = [];
             for (let i = 0; i < objects.length; i++) {
                 if (locateable_distance(objects[i], me) < distance) {
@@ -191,7 +235,7 @@ export default class GameController {
             player.players.forEach((player: Player) => {
                 total += player.radius ** 2 * 3.14;
             });
-            playerRadius.push([player.id, total]);
+            playerRadius.push([player.name ?? player.id, total]);
         });
         const sorted = playerRadius.sort((a: [string, number], b: [string, number]) => b[1] - a[1]);
         const rewards = [.05, .03, .02, .01, .005];
@@ -203,7 +247,7 @@ export default class GameController {
         }
         return sorted;
     }
-    getMessages() {
-
+    getGlobalMessages() {
+        return Array.from(this.globalMessages).map((value: [number, [string, string]]) => value[1]);
     }
 }
