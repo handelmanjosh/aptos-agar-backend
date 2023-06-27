@@ -20,7 +20,8 @@ const io = new Server(httpServer, {
     }
 });
 
-const port = process.env.ENVIRONMENT === "development" ? 3005 : (Number(process.env.PORT) || 3000);
+//const port = process.env.ENVIRONMENT === "development" ? 3005 : (Number(process.env.PORT) || 3000);
+const port = Number(process.env.PORT) || 3000;
 async function main() {
     const games: Map<string, GameController> = new Map<string, GameController>();
     const vMax = 10;
