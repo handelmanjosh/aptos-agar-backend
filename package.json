@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon src/server.ts",
-    "build": "npm run tsc --build --verbose",
+    "build": "tsc --build --verbose",
     "start": "node dist/src/server.js"
   },
   "keywords": [],
