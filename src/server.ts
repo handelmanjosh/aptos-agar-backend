@@ -40,9 +40,6 @@ async function main() {
         games.set(id, gameController);
         return id;
     };
-    let i = 0;
-    let key: string | undefined;
-    let username: string | undefined;
     const interval = setInterval(() => {
         for (const game of Array.from(games)) {
             game[1].frame();
@@ -59,9 +56,10 @@ async function main() {
             io.to(game[0]).emit("receiveLeaderboard", game[1].getLeaderboard());
             io.to(game[0]).emit("receiveGlobalMessages", game[1].getGlobalMessages());
         }
-        i++;
     }, 1000 / 60);
     io.on("connection", (socket: Socket) => {
+        let key: string | undefined;
+        let username: string | undefined;
         console.log("New user connected");
         let gameId: string = findRoom(socket);
         socket.join(gameId);
